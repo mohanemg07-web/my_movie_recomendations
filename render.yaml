@@ -1,15 +1,15 @@
 databases:
   - name: movielens-db
     databaseName: movielens
+    plan: free # Keep the free plan as requested
 
 services:
   - type: web
     name: movie-backend
     env: python
-    region: oregon
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -b 0.0.0.0:5000 app:app
+    startCommand: gunicorn app:app
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -19,12 +19,15 @@ services:
         generateValue: true
       - key: PYTHON_VERSION
         value: 3.9.0
-
-  - type: static
+      # Ensure TMDB key is available if backend needs to fetch data during heavy load
+      # (Optional, but good practice if load_data.py runs here)
+      
+  - type: web # Changed from static to web as requested
     name: movie-frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
+    env: node
     rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npx serve -s dist
     envVars:
       - key: VITE_TMDB_API_KEY
         value: 259ce8e6ef8a88ab367725c097372b3e
