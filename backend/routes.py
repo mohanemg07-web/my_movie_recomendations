@@ -44,6 +44,10 @@ def fetch_tmdb_movie_details(tmdb_id):
 
 api = Blueprint('api', __name__)
 
+@api.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'healthy'}), 200
+
 @api.route('/movies/details/<int:movie_id>', methods=['GET'])
 def get_movie_details(movie_id):
     try:

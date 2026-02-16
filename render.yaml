@@ -19,6 +19,8 @@ services:
         generateValue: true
       - key: PYTHON_VERSION
         value: 3.9.0
+      - key: TMDB_API_KEY
+        value: 259ce8e6ef8a88ab367725c097372b3e
       # Ensure TMDB key is available if backend needs to fetch data during heavy load
       # (Optional, but good practice if load_data.py runs here)
       

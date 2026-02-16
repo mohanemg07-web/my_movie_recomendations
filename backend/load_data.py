@@ -11,16 +11,7 @@ import bcrypt
 # TMDB API Key
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY')
 if not TMDB_API_KEY:
-    try:
-        with open('../frontend/.env', 'r') as f:
-            for line in f:
-                if 'VITE_TMDB_API_KEY' in line:
-                    TMDB_API_KEY = line.split('=')[1].strip()
-                    break
-    except:
-        pass
-
-print(f"Using TMDB API Key: {TMDB_API_KEY[:5]}..." if TMDB_API_KEY else "No TMDB API Key found.")
+    print("WARNING: TMDB_API_KEY not found in environment variables. Data loading may be incomplete.")
 
 def fetch_tmdb_details(tmdb_id):
     if not tmdb_id or pd.isna(tmdb_id):

@@ -28,6 +28,9 @@ def create_app():
     from recommender import recommender
     recommender.load_model()
     
+    with app.app_context():
+        db.create_all()
+    
     return app
 
 app = create_app()
