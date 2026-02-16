@@ -37,12 +37,13 @@ def fetch_tmdb_details(tmdb_id):
 
 def load_data():
     with app.app_context():
-        # Drop and recreate tables
-        # db.drop_all() # Optional: keep data if schema is compatible, but we changed schema so likely need drop
-        # Actually let's try to just create_all, but if schema changed significantly we might need to drop.
-        # Given we added columns, let's drop to be safe and clean.
-        db.drop_all()
+        # Create tables if they don't exist
         db.create_all()
+
+        print("Checking if data already exists...")
+        if Movie.query.first() is not None:
+             print("Data already exists. Skipping data loading.")
+             return
 
         print("Reading CSV files...")
         movies_df = pd.read_csv('../data/ml-latest-small/movies.csv')
@@ -63,6 +64,9 @@ def load_data():
         count = 0
         for _, row in movies_df.iterrows():
             movie_id = int(row['movieId'])
+            # Check if movie exists (redundant with top-level check but good for partials)
+            # Skipping individual check for speed since we checked empty table above.
+            
             title = row['title']
             genres = row['genres'] # Keep as string for now, or split? Model expects String
             # Model definition: genres = db.Column(db.String(255))
@@ -98,9 +102,7 @@ def load_data():
                 tmdb_id=int(tmdb_id) if not pd.isna(tmdb_id) else None,
                 poster_url=poster_url,
                 release_year=release_year,
-                actors=actors # SQLAlchemy will handle JSON serialization if using correct type? 
-                              # Wait, SQLite doesn't support JSON type natively in all versions, 
-                              # but Postgres does. We are using Postgres.
+                actors=actors 
             )
             db.session.add(movie)
             count += 1
@@ -120,6 +122,10 @@ def load_data():
         default_hash = bcrypt.hashpw(default_pw.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
         for uid in user_ids:
+            # Check if user exists
+            if User.query.get(int(uid)):
+                continue
+
             # We can aggregate likes for each user
             user_ratings = ratings_df[ratings_df['userId'] == uid]
             liked = user_ratings[user_ratings['rating'] >= 4.0]['movieId'].tolist()
