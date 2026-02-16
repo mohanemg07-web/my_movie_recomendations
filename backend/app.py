@@ -13,6 +13,9 @@ def create_app():
     # Database Configuration
     # Defaults to SQLite for local development, expects DATABASE_URL for production
     database_url = os.environ.get('DATABASE_URL', 'sqlite:///movielens.db')
+    # Fix for SQLAlchemy requiring postgresql:// instead of postgres://
+    if database_url and database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
     
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -38,4 +41,5 @@ app = create_app()
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(host='0.0.0.0', debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', debug=True, port=port)
