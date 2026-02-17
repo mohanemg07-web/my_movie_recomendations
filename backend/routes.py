@@ -82,6 +82,11 @@ def get_movie_details(movie_id):
                     cert = next((r['certification'] for r in us_release['release_dates'] if r['certification']), None)
                     data['certification'] = cert
         
+            # Save details to DB for future speedup
+            if tmdb_data.get('poster_path') and not movie.poster_url:
+                 movie.poster_url = f"https://image.tmdb.org/t/p/w500{tmdb_data.get('poster_path')}"
+                 db.session.commit()
+
         return jsonify(data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -159,14 +164,18 @@ def get_movies_by_actor(actor_name):
         movies = Movie.query.all()
         matching = [m for m in movies if actor_name in m.actors]
         
-        return jsonify([{
+        matching_dicts = [{
             'movie_id': m.id, 
             'title': m.title, 
             'genres': m.genres, 
             'poster_url': m.poster_url,
             'release_year': m.release_year,
-            'actors': m.actors 
-        } for m in matching[:10]])
+            'actors': m.actors,
+            'tmdb_id': m.tmdb_id
+        } for m in matching[:10]]
+        
+        ensure_posters(matching_dicts)
+        return jsonify(matching_dicts)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -183,6 +192,7 @@ def recommend(user_id):
             pass
             
         recommendations = recommender.get_recommendations(user_id, n=10)
+        ensure_posters(recommendations)
         
         return jsonify({
             'user_id': user_id,
@@ -201,6 +211,7 @@ def similar(movie_id):
             return jsonify({'error': 'Movie not found'}), 404
             
         similar_movies = recommender.get_similar_movies(movie_id, n=10)
+        ensure_posters(similar_movies)
         
         return jsonify({
             'movie_id': movie_id,
@@ -218,6 +229,7 @@ def popular():
     try:
         # Increase limit to 10 as requested
         movies = recommender.get_popular_movies(n=10)
+        ensure_posters(movies)
         return jsonify(movies)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -236,7 +248,7 @@ def search_movies():
         )
     ).limit(10).all()
     
-    return jsonify([{
+    results_dicts = [{
         'movie_id': m.id,
         'title': m.title,
         'genres': m.genres,
@@ -244,7 +256,10 @@ def search_movies():
         'release_year': m.release_year,
         'actors': m.actors,
         'tmdb_id': m.tmdb_id
-    } for m in results])
+    } for m in results]
+    
+    ensure_posters(results_dicts)
+    return jsonify(results_dicts)
 
 @api.route('/rate', methods=['POST'])
 def rate_movie():
