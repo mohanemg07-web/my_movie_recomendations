@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import api from '../api';
 
 const Login = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -23,7 +22,8 @@ const Login = () => {
         e.preventDefault();
         setError('');
 
-        const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
+        // Remove /api prefix because api client already has it in baseURL
+        const endpoint = isLogin ? '/auth/login' : '/auth/signup';
         const payload = {
             username: formData.username,
             password: formData.password,
@@ -36,27 +36,17 @@ const Login = () => {
         }
 
         try {
-            const hostname = window.location.hostname;
-            const response = await fetch(`http://${hostname}:5000${endpoint}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Authentication failed');
-            }
+            const response = await api.post(endpoint, payload);
+            const data = response.data;
 
             // Login context
             login(data.user, data.token);
             navigate('/');
 
         } catch (err) {
-            setError(err.message);
+            console.error("Auth Error:", err);
+            const msg = err.response?.data?.error || err.message || 'Authentication failed';
+            setError(msg);
         }
     };
 
