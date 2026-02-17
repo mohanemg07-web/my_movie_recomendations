@@ -56,22 +56,26 @@ This guide explains how to deploy your Movie Recommendation System using free ti
 ---
 
 ## 4️⃣ Data Seeding
-After deployment, the database will be empty. To fill it:
-1.  Go to your **Render Dashboard** -> **Backend Service**.
-2.  Click on **Shell** (or **Connect** -> **SSH**).
-3.  Run the seed script:
-    ```bash
-    python load_data.py
-    ```
-4.  **Train the Model**:
-    The model needs to be trained on the server to generate `model.pkl`.
-    Run in the same Shell:
-    ```bash
-    python backend/train_model.py
-    ```
-    *(This will read from the database and save `model.pkl`)*
+Since the **Free Tier** does not have an interactive Shell, you must run the setup scripts as part of the **Start Command**.
 
-5.  **Restart Service**:
-    Go to the main dashboard for your service and click **Manual Deploy** -> **Clear Build Cache & Deploy** or just **Restart Service** to ensure the new model is loaded (though `app.py` might pick it up on next worker boot).
+1.  Go to your **Render Dashboard** -> **Settings**.
+2.  Scroll down to the **Start Command** field.
+3.  Change it to:
+    ```bash
+    python load_data.py; python train_model.py; gunicorn app:app
+    ```
+4.  **Save Changes**. Render will automatically redeploy.
+
+> **What this does:**
+> 1. `python load_data.py`: Loads the movie data into the database (only runs if data is missing).
+> 2. `python train_model.py`: Trains the recommendation model and saves `model.pkl`.
+> 3. `gunicorn app:app`: Starts the web server.
+
+**Verify Deployment**:
+*   Wait for the deployment to finish.
+*   Check the **Logs** tab. You should eventually see:
+    *   "Final Model saved to model.pkl"
+    *   "Starting gunicorn"
+    *   "Your service is live"
 
 ✅ **Done!** Your full-stack app is now live for free.
