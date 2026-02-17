@@ -58,11 +58,11 @@ def create_app():
 
 
 
+app = create_app()
+
 @app.route('/')
 def home():
     return "Movie Recommendation API is running. Access endpoints at /api/", 200
-
-app = create_app()
 
 # ---------------- RUN ----------------
 if __name__ == '__main__':
