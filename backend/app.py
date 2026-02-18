@@ -7,8 +7,8 @@ def create_app():
     app = Flask(__name__)
 
     # ---------------- CORS ----------------
-    frontend_url = os.environ.get('FRONTEND_URL', '*')
-    CORS(app, resources={r"/api/*": {"origins": frontend_url}})
+    # Allow ANY origin as requested (public API)
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     # ---------------- SECRET ----------------
     app.config['SECRET_KEY'] = os.environ.get(
