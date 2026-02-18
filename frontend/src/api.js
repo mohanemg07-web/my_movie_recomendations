@@ -1,8 +1,7 @@
 import axios from 'axios';
 
-// Dynamically determine the API URL
-// Use environment variable for API URL in production, fallback to localhost for dev
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '') + '/api';
+// Hardcoded for reliability
+const API_URL = 'https://my-movie-recommendations.onrender.com/api';
 
 const api = axios.create({
     baseURL: API_URL,
