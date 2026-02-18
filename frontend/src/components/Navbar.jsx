@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
-import { Film, ChevronDown, Search, User, LogOut, LogIn } from 'lucide-react';
+import { Film, ChevronDown, Search, User, LogOut, LogIn, SlidersHorizontal } from 'lucide-react';
 
 const Navbar = () => {
     const { user, logout } = useAuth();
@@ -31,8 +31,8 @@ const Navbar = () => {
 
     return (
         <nav className={`fixed w-full z-50 transition-all duration-500 ${scrolled
-                ? 'bg-black/95 backdrop-blur-md shadow-lg'
-                : 'bg-gradient-to-b from-black/80 to-transparent'
+            ? 'bg-black/95 backdrop-blur-md shadow-lg'
+            : 'bg-gradient-to-b from-black/80 to-transparent'
             }`}>
             <div className="container mx-auto px-6 py-3 flex justify-between items-center">
                 <Link to="/" className="flex items-center gap-2 text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
@@ -42,7 +42,10 @@ const Navbar = () => {
 
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex items-center gap-8">
-                    <Link to="/" className="text-sm font-semibold text-white/90 hover:text-primary uppercase tracking-wider transition-colors">Movie Picker</Link>
+                    <Link to="/filter" className="flex items-center gap-1.5 text-sm font-semibold text-white/90 hover:text-primary uppercase tracking-wider transition-colors group">
+                        <SlidersHorizontal className="w-3.5 h-3.5 group-hover:rotate-90 transition-transform duration-300" />
+                        Movie Picker
+                    </Link>
                     <Link to="/popular" className="text-sm font-semibold text-white/90 hover:text-primary uppercase tracking-wider transition-colors">Popular</Link>
 
                     <div className="relative group">

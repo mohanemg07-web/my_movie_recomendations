@@ -255,8 +255,82 @@ def get_movies_by_genre(genre_name):
             'tmdb_id': m.tmdb_id
         } for m, _ in top]
 
-        ensure_posters(result)
+
         return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api.route('/movies/filter', methods=['GET'])
+def filter_movies():
+    """
+    Filter movies by genre(s), release year range, minimum avg rating, and actor.
+    All provided filters are applied as AND conditions.
+    Query params:
+      genres     - comma-separated genre names (movie must contain ALL)
+      year_min   - minimum release year (inclusive)
+      year_max   - maximum release year (inclusive)
+      min_rating - minimum average user rating (0-5)
+      actor      - actor name substring (case-insensitive)
+    """
+    try:
+        genres_param = request.args.get('genres', '').strip()
+        year_min = request.args.get('year_min', type=int)
+        year_max = request.args.get('year_max', type=int)
+        min_rating = request.args.get('min_rating', type=float)
+        actor_param = request.args.get('actor', '').strip()
+
+        query = Movie.query
+
+        # Year range filter
+        if year_min is not None:
+            query = query.filter(Movie.release_year >= year_min)
+        if year_max is not None:
+            query = query.filter(Movie.release_year <= year_max)
+
+        # Genre filter (movie genres field is pipe-separated e.g. "Action|Drama")
+        if genres_param:
+            selected_genres = [g.strip() for g in genres_param.split(',') if g.strip()]
+            for genre in selected_genres:
+                query = query.filter(Movie.genres.ilike(f'%{genre}%'))
+
+        # Actor filter
+        if actor_param:
+            # actors is stored as JSON list; use ilike on the JSON string representation
+            query = query.filter(Movie.actors.cast(db.String).ilike(f'%{actor_param}%'))
+
+        movies = query.limit(100).all()
+
+        # Build result dicts
+        results = []
+        for m in movies:
+            avg_rating = None
+            if min_rating is not None:
+                # Compute average rating from ratings table
+                ratings_list = [r.rating for r in m.ratings]
+                if ratings_list:
+                    avg_rating = sum(ratings_list) / len(ratings_list)
+                else:
+                    avg_rating = 0.0
+                if avg_rating < min_rating:
+                    continue  # Skip movies below min rating
+
+            results.append({
+                'movie_id': m.id,
+                'title': m.title,
+                'genres': m.genres,
+                'poster_url': m.poster_url,
+                'release_year': m.release_year,
+                'actors': m.actors,
+                'tmdb_id': m.tmdb_id,
+                'avg_rating': avg_rating
+            })
+
+        # Limit to 30 results
+        results = results[:30]
+
+        return jsonify(results)
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -273,7 +347,7 @@ def recommend(user_id):
         # result is now {'type': ..., 'movies': [...]}
         movies = result.get('movies', []) if isinstance(result, dict) else result
         rec_type = result.get('type', 'popular') if isinstance(result, dict) else 'popular'
-        ensure_posters(movies)
+
         
         return jsonify({
             'user_id': user_id,
@@ -293,7 +367,7 @@ def similar(movie_id):
             return jsonify({'error': 'Movie not found'}), 404
             
         similar_movies = recommender.get_similar_movies(movie_id, n=10)
-        ensure_posters(similar_movies)
+
         
         return jsonify({
             'movie_id': movie_id,
@@ -309,9 +383,7 @@ from sqlalchemy import or_
 @api.route('/popular', methods=['GET'])
 def popular():
     try:
-        # Increase limit to 10 as requested
         movies = recommender.get_popular_movies(n=10)
-        ensure_posters(movies)
         return jsonify(movies)
     except Exception as e:
         return jsonify({'error': str(e)}), 500

@@ -8,37 +8,66 @@ import { Flame } from 'lucide-react';
 const Popular = () => {
     const [popular, setPopular] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
     const [ratingsMap, setRatingsMap] = useState({});
     const { user } = useAuth();
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
+    const fetchPopular = async (retries = 3) => {
+        setLoading(true);
+        setError(false);
+        for (let attempt = 1; attempt <= retries; attempt++) {
             try {
-                const promises = [api.get('/popular')];
-                if (user) {
-                    promises.push(api.get(`/ratings/${user.id}`));
-                }
-                const results = await Promise.all(promises);
-                setPopular(results[0].data);
 
-                if (user && results[1] && Array.isArray(results[1].data)) {
+                const res = await api.get('/popular');
+                setPopular(res.data || []);
+                setLoading(false);
+                return; // success
+            } catch (err) {
+
+                if (err.code === 'ERR_CANCELED') {
+                    // Request was cancelled (e.g. by StrictMode unmount) — don't retry
+                    return;
+                }
+                if (attempt < retries) {
+                    await new Promise(r => setTimeout(r, 1000)); // wait 1s before retry
+                }
+            }
+        }
+        // All retries failed
+        setLoading(false);
+        setError(true);
+    };
+
+    useEffect(() => {
+        fetchPopular();
+    }, []);
+
+    // Fetch user ratings separately so it never blocks movie display
+    useEffect(() => {
+        if (!user) return;
+        api.get(`/ratings/${user.id}`)
+            .then(res => {
+                if (Array.isArray(res.data)) {
                     const rMap = {};
-                    results[1].data.forEach(r => { rMap[r.movie_id] = r.rating; });
+                    res.data.forEach(r => { rMap[r.movie_id] = r.rating; });
                     setRatingsMap(rMap);
                 }
-            } catch (err) {
-                console.error("Failed to fetch popular:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
+            })
+            .catch(() => { });
     }, [user]);
 
     if (loading) return (
         <div className="h-screen flex items-center justify-center bg-dark text-white">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+    );
+
+    if (error) return (
+        <div className="h-screen flex flex-col items-center justify-center bg-dark text-white gap-4">
+            <p className="text-white/60">Failed to load popular movies.</p>
+            <button onClick={() => fetchPopular()} className="px-4 py-2 rounded-lg bg-primary text-white hover:opacity-80 transition-opacity">
+                Try Again
+            </button>
         </div>
     );
 

@@ -24,6 +24,7 @@ const Home = () => {
 
     // Main data fetch
     useEffect(() => {
+
         const fetchData = async () => {
             setLoading(true);
             try {
@@ -32,7 +33,9 @@ const Home = () => {
                     promises.push(api.get(`/recommend/${user.id}`));
                     promises.push(api.get(`/ratings/${user.id}`));
                 }
+
                 const results = await Promise.all(promises);
+
                 const popularMovies = results[0].data || [];
                 setPopular(popularMovies);
 
@@ -57,19 +60,22 @@ const Home = () => {
                     setHeroMovie(popularMovies[randomIdx]);
                 }
             } catch (err) {
-                console.error('Failed to fetch data:', err);
+
             } finally {
                 setLoading(false);
             }
         };
         fetchData();
+
     }, [user]);
 
     // Fetch genre rows after main data loads
     useEffect(() => {
         if (loading) return;
+
+        const controller = new AbortController();
         GENRES.forEach(genre => {
-            api.get(`/movies/genre/${encodeURIComponent(genre)}`)
+            api.get(`/movies/genre/${encodeURIComponent(genre)}`, { signal: controller.signal })
                 .then(res => {
                     if (res.data?.length > 0) {
                         setGenreRows(prev => ({ ...prev, [genre]: res.data }));
@@ -77,6 +83,10 @@ const Home = () => {
                 })
                 .catch(() => { });
         });
+        return () => {
+
+            controller.abort();
+        };
     }, [loading]);
 
     // Fetch actor movies when actor param changes

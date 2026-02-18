@@ -33,11 +33,29 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+    # Fix SQLite threading: SQLite doesn't support concurrent access from
+    # multiple threads by default. With threaded=True on Flask, we need this.
+    if database_url.startswith('sqlite'):
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'connect_args': {'check_same_thread': False},
+            'pool_pre_ping': True,
+        }
+    else:
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'pool_pre_ping': True,
+            'pool_recycle': 300,
+        }
+
     db.init_app(app)
 
     # ✅ CREATE TABLES AUTOMATICALLY
     with app.app_context():
         db.create_all()
+
+    # Ensure DB session is properly closed after each request
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        db.session.remove()
 
     # ---------------- JWT ----------------
     from flask_jwt_extended import JWTManager
@@ -67,4 +85,4 @@ def home():
 # ---------------- RUN ----------------
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=True, threaded=True)
