@@ -199,8 +199,9 @@ def get_top_actors():
         movies = Movie.query.all()
         actor_counts = {}
         for m in movies:
-            for actor in m.actors:
-                actor_counts[actor] = actor_counts.get(actor, 0) + 1
+            if m.actors:
+                for actor in m.actors:
+                    actor_counts[actor] = actor_counts.get(actor, 0) + 1
         
         # Sort by count
         sorted_actors = sorted(actor_counts.items(), key=lambda x: x[1], reverse=True)[:20]
@@ -213,7 +214,7 @@ def get_movies_by_actor(actor_name):
     # Filter movies where actor in actors list
     try:
         movies = Movie.query.all()
-        matching = [m for m in movies if actor_name in m.actors]
+        matching = [m for m in movies if m.actors and actor_name in m.actors]
         
         matching_dicts = [{
             'movie_id': m.id, 

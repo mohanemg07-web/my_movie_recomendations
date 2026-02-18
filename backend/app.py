@@ -41,7 +41,7 @@ def create_app():
 
     # ---------------- JWT ----------------
     from flask_jwt_extended import JWTManager
-    JWTManager(app)
+    JWTManager(app)##
 
     # ---------------- ROUTES ----------------
     from routes import api
