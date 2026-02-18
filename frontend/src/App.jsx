@@ -6,6 +6,8 @@ import MovieDetail from './pages/MovieDetail';
 import { AuthProvider } from './context/AuthContext';
 import Login from './pages/Login';
 import SearchResults from './pages/SearchResults';
+import MyRatings from './pages/MyRatings';
+import Popular from './pages/Popular';
 
 import { OverlayProvider } from './context/OverlayContext';
 import MovieOverviewOverlay from './components/MovieOverviewOverlay';
@@ -21,7 +23,8 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/search" element={<SearchResults />} />
               <Route path="/" element={<Home />} />
-              <Route path="/popular" element={<Home />} />
+              <Route path="/popular" element={<Popular />} />
+              <Route path="/my-ratings" element={<MyRatings />} />
               {/* <Route path="/movie/:id" element={<MovieDetail />} />  -- Page effectively bypassed by overlay */}
             </Routes>
           </div>

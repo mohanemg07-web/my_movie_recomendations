@@ -232,6 +232,34 @@ def get_movies_by_actor(actor_name):
         return jsonify({'error': str(e)}), 500
 
 
+@api.route('/movies/genre/<string:genre_name>', methods=['GET'])
+def get_movies_by_genre(genre_name):
+    try:
+        # Use LIKE query on genres field (pipe-separated)
+        movies = Movie.query.filter(Movie.genres.ilike(f'%{genre_name}%')).all()
+        # Sort by rating count (proxy for popularity)
+        movies_with_ratings = []
+        for m in movies:
+            count = Rating.query.filter_by(movie_id=m.id).count()
+            movies_with_ratings.append((m, count))
+        movies_with_ratings.sort(key=lambda x: x[1], reverse=True)
+        top = movies_with_ratings[:15]
+
+        result = [{
+            'movie_id': m.id,
+            'title': m.title,
+            'genres': m.genres,
+            'poster_url': m.poster_url,
+            'release_year': m.release_year,
+            'actors': m.actors,
+            'tmdb_id': m.tmdb_id
+        } for m, _ in top]
+
+        ensure_posters(result)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @api.route('/recommend/<int:user_id>', methods=['GET'])
 def recommend(user_id):
@@ -239,16 +267,18 @@ def recommend(user_id):
     try:
         user = User.query.get(user_id)
         if not user:
-            # Check if user exists in model but not DB? Unlikely.
-            # Allowing query for unknown user -> Cold start
             pass
             
-        recommendations = recommender.get_recommendations(user_id, n=10)
-        ensure_posters(recommendations)
+        result = recommender.get_recommendations(user_id, n=10)
+        # result is now {'type': ..., 'movies': [...]}
+        movies = result.get('movies', []) if isinstance(result, dict) else result
+        rec_type = result.get('type', 'popular') if isinstance(result, dict) else 'popular'
+        ensure_posters(movies)
         
         return jsonify({
             'user_id': user_id,
-            'recommendations': recommendations,
+            'recommendations': movies,
+            'type': rec_type,
             'latency_ms': int((time.time() - start) * 1000)
         })
     except Exception as e:
@@ -288,29 +318,30 @@ def popular():
 
 @api.route('/search')
 def search_movies():
-    query = request.args.get('q', '').lower()
-    if not query:
+    query = request.args.get('q', '').strip()
+    if not query or len(query) < 2:
         return jsonify([])
-    
-    # Search by Title OR Genre, limit 10
+
+    limit = min(int(request.args.get('limit', 20)), 50)
+
+    # Fast DB-only search — no TMDB calls
     results = Movie.query.filter(
         or_(
             Movie.title.ilike(f'%{query}%'),
             Movie.genres.ilike(f'%{query}%')
         )
-    ).limit(10).all()
-    
+    ).limit(limit).all()
+
     results_dicts = [{
         'movie_id': m.id,
         'title': m.title,
         'genres': m.genres,
-        'poster_url': m.poster_url,
+        'poster_url': m.poster_url,   # use whatever is already in DB
         'release_year': m.release_year,
         'actors': m.actors,
         'tmdb_id': m.tmdb_id
     } for m in results]
-    
-    ensure_posters(results_dicts)
+
     return jsonify(results_dicts)
 
 @api.route('/rate', methods=['POST'])
@@ -356,3 +387,32 @@ def rate_movie():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+@api.route('/ratings/<int:user_id>', methods=['GET'])
+def get_user_ratings(user_id):
+    try:
+        ratings = Rating.query.filter_by(user_id=user_id).all()
+        if not ratings:
+            return jsonify([])
+
+        result = []
+        for r in ratings:
+            movie = Movie.query.get(r.movie_id)
+            if movie:
+                result.append({
+                    'movie_id': movie.id,
+                    'title': movie.title,
+                    'genres': movie.genres,
+                    'poster_url': movie.poster_url,
+                    'tmdb_id': movie.tmdb_id,
+                    'release_year': movie.release_year,
+                    'actors': movie.actors,
+                    'rating': r.rating,
+                    'timestamp': r.timestamp
+                })
+
+        ensure_posters(result)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+

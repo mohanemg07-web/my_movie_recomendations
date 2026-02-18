@@ -63,6 +63,23 @@ Since the **Free Tier** does not have an interactive Shell, you must run the set
 3.  Change it to:
     ```bash
     python load_data.py; python train_model.py; gunicorn app:app
+
+## Maintenance & Updates
+
+### How to Redeploy (When you change Env Vars)
+
+**Render (Backend)**
+1. Go to your Dashboard.
+2. Click **Manual Deploy**.
+3. Select **Deploy latest commit** (or "Clear build cache & deploy" if issues persist).
+
+**Vercel (Frontend)**
+1. Go to your Dashboard -> **Deployments**.
+2. Find your strict latest deployment (usually the top one).
+3. Click the **three dots (⋮)** on the right.
+4. Select **Redeploy**.
+5. **IMPORTANT**: Uncheck "Use existing Build Cache" to force a fresh build (this ensures new Env Vars are picked up).
+6. Click **Redeploy**.
     ```
 4.  **Save Changes**. Render will automatically redeploy.
 

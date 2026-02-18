@@ -7,8 +7,8 @@ def create_app():
     app = Flask(__name__)
 
     # ---------------- CORS ----------------
-    # Allow ANY origin as requested (public API)
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    # Allow ANY origin (public API) — apply globally so error responses also get headers
+    CORS(app, supports_credentials=True)
 
     # ---------------- SECRET ----------------
     app.config['SECRET_KEY'] = os.environ.get(

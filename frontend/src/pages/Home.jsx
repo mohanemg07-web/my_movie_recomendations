@@ -1,158 +1,155 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api';
 import Navbar from '../components/Navbar';
-import MovieCard from '../components/MovieCard';
+import HeroSection from '../components/HeroSection';
+import MovieRow from '../components/MovieRow';
 import { useAuth } from '../context/AuthContext';
+
+const GENRES = ['Action', 'Comedy', 'Drama', 'Thriller', 'Sci-Fi', 'Romance', 'Animation', 'Crime'];
 
 const Home = () => {
     const [popular, setPopular] = useState([]);
     const [recommended, setRecommended] = useState([]);
-    const [topActors, setTopActors] = useState([]);
-    const [selectedActor, setSelectedActor] = useState(null);
+    const [recType, setRecType] = useState('popular');
+    const [heroMovie, setHeroMovie] = useState(null);
     const [actorMovies, setActorMovies] = useState([]);
+    const [genreRows, setGenreRows] = useState({});
+    const [ratingsMap, setRatingsMap] = useState({});
     const [loading, setLoading] = useState(true);
 
     const { user } = useAuth();
+    const [searchParams] = useSearchParams();
+    const selectedActor = searchParams.get('actor');
 
+    // Main data fetch
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const promises = [
-                    api.get('/popular'),
-                    api.get('/movies/actors')
-                ];
+                const promises = [api.get('/popular')];
                 if (user) {
                     promises.push(api.get(`/recommend/${user.id}`));
+                    promises.push(api.get(`/ratings/${user.id}`));
                 }
-
                 const results = await Promise.all(promises);
-                setPopular(results[0].data);
-                setTopActors(results[1].data);
+                const popularMovies = results[0].data || [];
+                setPopular(popularMovies);
 
                 if (user) {
-                    // Check index based on push
-                    const recIndex = results.length - 1;
-                    if (results[recIndex] && results[recIndex].data.recommendations) {
-                        setRecommended(results[recIndex].data.recommendations);
+                    if (results[1]?.data) {
+                        const recData = results[1].data;
+                        setRecommended(recData.recommendations || []);
+                        setRecType(recData.type || 'popular');
+                    }
+                    if (results[2] && Array.isArray(results[2].data)) {
+                        const rMap = {};
+                        results[2].data.forEach(r => { rMap[r.movie_id] = r.rating; });
+                        setRatingsMap(rMap);
                     }
                 }
+
+                // Set hero: top recommended for logged-in, random popular for guest
+                if (user && results[1]?.data?.recommendations?.length > 0) {
+                    setHeroMovie(results[1].data.recommendations[0]);
+                } else if (popularMovies.length > 0) {
+                    const randomIdx = Math.floor(Math.random() * Math.min(5, popularMovies.length));
+                    setHeroMovie(popularMovies[randomIdx]);
+                }
             } catch (err) {
-                console.error("Failed to fetch data:", err);
+                console.error('Failed to fetch data:', err);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchData();
     }, [user]);
 
-    const handleActorClick = async (actorName) => {
-        if (selectedActor === actorName) {
-            setSelectedActor(null);
+    // Fetch genre rows after main data loads
+    useEffect(() => {
+        if (loading) return;
+        GENRES.forEach(genre => {
+            api.get(`/movies/genre/${encodeURIComponent(genre)}`)
+                .then(res => {
+                    if (res.data?.length > 0) {
+                        setGenreRows(prev => ({ ...prev, [genre]: res.data }));
+                    }
+                })
+                .catch(() => { });
+        });
+    }, [loading]);
+
+    // Fetch actor movies when actor param changes
+    useEffect(() => {
+        if (selectedActor) {
+            api.get(`/movies/actor/${encodeURIComponent(selectedActor)}`)
+                .then(res => setActorMovies(res.data))
+                .catch(() => setActorMovies([]));
+        } else {
             setActorMovies([]);
-            return;
         }
-        setSelectedActor(actorName);
-        try {
-            const res = await api.get(`/movies/actor/${encodeURIComponent(actorName)}`);
-            setActorMovies(res.data);
-        } catch (err) {
-            console.error("Failed to fetch actor movies:", err);
-        }
-    };
+    }, [selectedActor]);
 
     if (loading) return (
-        <div className="h-screen flex items-center justify-center bg-dark text-white">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        <div className="h-screen flex items-center justify-center bg-black text-white">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600" />
         </div>
     );
 
+    // Determine rec row label
+    const recLabel = recType === 'similar'
+        ? `Top Picks for ${user?.username} — Based on Your Ratings`
+        : recType === 'personalized'
+            ? `Top Picks for ${user?.username}`
+            : `Top Picks for ${user?.username}`;
+
     return (
-        <div className="min-h-screen bg-dark font-sans text-gray-100">
+        <div className="min-h-screen bg-black text-gray-100 font-sans">
             <Navbar />
 
-            <main className="container mx-auto px-6 pt-24 pb-16 relative z-10 space-y-16">
-                <div className="text-center mb-8">
-                    <h2 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary mb-2 animate-pulse">
-                        Discover Movies
-                    </h2>
-                    <div className="w-24 h-1 bg-gradient-to-r from-primary to-secondary mx-auto rounded-full"></div>
-                </div>
+            {/* Fullscreen Hero */}
+            <HeroSection movie={heroMovie} />
 
-                {/* Top Actors Section */}
-                <section>
-                    <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-2">
-                        <span className="bg-purple-500/20 p-2 rounded-lg text-purple-400">🎭</span>
-                        Top Actors
-                    </h2>
-                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-                        {topActors.map((actor, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => handleActorClick(actor.name)}
-                                className={`flex-shrink-0 px-6 py-3 rounded-full border transition-all duration-300 font-semibold whitespace-nowrap
-                                    ${selectedActor === actor.name
-                                        ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30 transform scale-105'
-                                        : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10 hover:border-primary/50 hover:text-white'
-                                    }`}
-                            >
-                                {actor.name}
-                                <span className={`ml-2 text-xs opacity-70 ${selectedActor === actor.name ? 'text-white' : 'text-gray-500'}`}>
-                                    ({actor.count})
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                </section>
+            {/* Rows — overlap the hero with negative margin */}
+            <div className="relative z-10 pb-16 space-y-2">
 
-                {/* Actor Movies Section (Collapsible) */}
+                {/* Actor row (when selected from navbar) */}
                 {selectedActor && actorMovies.length > 0 && (
-                    <section className="animate-fade-in-down">
-                        <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-2">
-                            <span className="bg-primary/20 p-2 rounded-lg text-primary">🎬</span>
-                            Starring {selectedActor}
-                            <button
-                                onClick={() => setSelectedActor(null)}
-                                className="ml-auto text-sm font-normal text-gray-400 hover:text-white"
-                            >
-                                Clear
-                            </button>
-                        </h2>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                            {actorMovies.map(movie => (
-                                <MovieCard key={movie.movie_id} movie={movie} />
-                            ))}
-                        </div>
-                    </section>
+                    <MovieRow
+                        title={`Starring ${selectedActor}`}
+                        movies={actorMovies}
+                        ratingsMap={ratingsMap}
+                    />
                 )}
 
+                {/* Personalized recommendations */}
                 {user && recommended.length > 0 && (
-                    <section>
-                        <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-2">
-                            <span className="bg-green-500/20 p-2 rounded-lg text-green-400">✨</span>
-                            Top Picks for {user.username}
-                        </h2>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                            {recommended.map(movie => (
-                                <MovieCard key={movie.movie_id} movie={movie} />
-                            ))}
-                        </div>
-                    </section>
+                    <MovieRow
+                        title={recLabel}
+                        movies={recommended}
+                        ratingsMap={ratingsMap}
+                    />
                 )}
 
-                <section>
-                    <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-2">
-                        <span className="bg-orange-500/20 p-2 rounded-lg text-orange-400">🔥</span>
-                        Trending Now
-                    </h2>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                        {popular.map(movie => (
-                            <MovieCard key={movie.movie_id} movie={{ ...movie, movie_id: movie.movie_id }} />
-                        ))}
-                    </div>
-                </section>
-            </main>
+                {/* Trending Now */}
+                <MovieRow
+                    title="Trending Now"
+                    movies={popular}
+                    ratingsMap={ratingsMap}
+                />
+
+                {/* Genre rows */}
+                {GENRES.map(genre => (
+                    genreRows[genre]?.length > 0 && (
+                        <MovieRow
+                            key={genre}
+                            title={genre}
+                            movies={genreRows[genre]}
+                            ratingsMap={ratingsMap}
+                        />
+                    )
+                ))}
+            </div>
         </div>
     );
 };

@@ -41,12 +41,15 @@ class Recommender:
 
     def get_recommendations(self, user_id, n=5):
         if not self.loaded:
-            return self.get_popular_movies(n)
+            return {'type': 'popular', 'movies': self.get_popular_movies(n)}
         
         # Cold start for new user
         if user_id not in self.user_map:
-            print(f"User {user_id} not in model. Returning popular movies.")
-            return self.get_popular_movies(n)
+            print(f"User {user_id} not in model. Trying cold-start recommendations.")
+            cold_start = self.get_cold_start_recommendations(user_id, n)
+            if cold_start:
+                return {'type': 'similar', 'movies': cold_start}
+            return {'type': 'popular', 'movies': self.get_popular_movies(n)}
         
         user_idx = self.user_map[user_id]
         user_vec = self.matrix_reduced[user_idx]
@@ -95,7 +98,58 @@ class Recommender:
                     break
         
         # Resolve Movie Titles
-        return self._resolve_movie_details(recommendations)
+        return {'type': 'personalized', 'movies': self._resolve_movie_details(recommendations)}
+
+    def get_cold_start_recommendations(self, user_id, n=10):
+        """Content-based recommendations for users not in the SVD model.
+        Uses the user's own ratings to find similar movies via item embeddings."""
+        try:
+            ratings = Rating.query.filter_by(user_id=user_id).all()
+            if not ratings:
+                return []
+
+            # Get highly-rated movies (>= 3.5 stars)
+            liked_movie_ids = [r.movie_id for r in ratings if r.rating >= 3.5]
+            if not liked_movie_ids:
+                # If all ratings are low, use all rated movies
+                liked_movie_ids = [r.movie_id for r in ratings]
+
+            rated_movie_ids = set(r.movie_id for r in ratings)
+
+            # Build a pseudo-user vector by averaging item embeddings of liked movies
+            item_vecs = []
+            for mid in liked_movie_ids:
+                if mid in self.movie_map:
+                    idx = self.movie_map[mid]
+                    item_vecs.append(self.components[:, idx])
+
+            if not item_vecs:
+                return []
+
+            # Average the item vectors to create a user profile
+            user_profile = np.mean(item_vecs, axis=0).reshape(1, -1)
+
+            # Find most similar movies using cosine similarity
+            item_matrix = self.components.T  # (n_movies, n_components)
+            sim_scores = cosine_similarity(user_profile, item_matrix).flatten()
+
+            sorted_indices = np.argsort(sim_scores)[::-1]
+
+            recommendations = []
+            for idx in sorted_indices:
+                movie_id = self.movie_ids[idx]
+                if movie_id not in rated_movie_ids:
+                    recommendations.append({
+                        'movie_id': int(movie_id),
+                        'predicted_rating': float(sim_scores[idx] * 5)  # Scale to 0-5
+                    })
+                    if len(recommendations) >= n:
+                        break
+
+            return self._resolve_movie_details(recommendations)
+        except Exception as e:
+            print(f"Cold-start recommendation error: {e}")
+            return []
 
     def get_similar_movies(self, movie_id, n=5):
         if not self.loaded or movie_id not in self.movie_map:
