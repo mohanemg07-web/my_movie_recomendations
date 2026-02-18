@@ -42,6 +42,57 @@ def fetch_tmdb_movie_details(tmdb_id):
         print(f"Error fetching TMDB details: {e}")
     return None
 
+def ensure_posters(movies_data):
+    """
+    Checks a list of movie dictionaries for missing poster_urls.
+    If missing, fetches from TMDB, updates the DB, and updates the dictionary in-place.
+    """
+    if not movies_data:
+        return
+
+    # Identify movies needing updates
+    missing_indices = []
+    missing_ids = []
+    
+    for i, m in enumerate(movies_data):
+        if not m.get('poster_url') and m.get('tmdb_id'):
+            missing_indices.append(i)
+            missing_ids.append(m.get('movie_id') or m.get('id')) 
+
+    if not missing_ids:
+        return
+
+    # Query DB objects to update
+    movies_to_update = Movie.query.filter(Movie.id.in_(missing_ids)).all()
+    
+    updated_count = 0
+    for mov in movies_to_update:
+        print(f"Fetching missing poster for: {mov.title}")
+        tmdb_info = fetch_tmdb_movie_details(mov.tmdb_id)
+        
+        if tmdb_info:
+            poster_path = tmdb_info.get('poster_path')
+            if poster_path:
+                full_poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}"
+                mov.poster_url = full_poster_url
+                
+                # Update the dictionaries in our list
+                for idx in missing_indices:
+                    item = movies_data[idx]
+                    item_id = item.get('movie_id') or item.get('id')
+                    if item_id == mov.id:
+                        item['poster_url'] = full_poster_url
+                
+                updated_count += 1
+                
+    if updated_count > 0:
+        try:
+            db.session.commit()
+            print(f"Updated posters for {updated_count} movies.")
+        except Exception as e:
+            print(f"Failed to commit poster updates: {e}")
+            db.session.rollback()
+
 api = Blueprint('api', __name__)
 
 @api.route('/health', methods=['GET'])
